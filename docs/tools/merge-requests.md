@@ -15,6 +15,9 @@ MR lifecycle — create, update, merge, approve, plus diff/conflict inspection a
 - [`get_branch`](#get_branch) — 📖 Read-only
 - [`list_branches`](#list_branches) — 📖 Read-only
 - [`get_merge_request_conflicts`](#get_merge_request_conflicts) — 📖 Read-only
+- [`list_merge_request_dependencies`](#list_merge_request_dependencies) — 📖 Read-only
+- [`create_merge_request_dependency`](#create_merge_request_dependency) — ✏️ Writes
+- [`delete_merge_request_dependency`](#delete_merge_request_dependency) — ✏️ Writes
 - [`list_merge_request_pipelines`](#list_merge_request_pipelines) — 📖 Read-only
 - [`get_merge_request`](#get_merge_request) — 📖 Read-only
 - [`get_merge_request_diffs`](#get_merge_request_diffs) — 📖 Read-only
@@ -175,6 +178,48 @@ Get the conflicts of a merge request. Inspect merge conflicts before `merge_merg
 | `project_id` | string | ✓ | Project ID or complete URL-encoded path to project |
 | `merge_request_iid` | string | ✓ | The IID of the merge request |
 
+### `list_merge_request_dependencies`
+
+*📖 Read-only*
+
+List the merge requests that block a merge request, or that it blocks.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|:-:|---|
+| `project_id` | string | ✓ | Project ID or complete URL-encoded path to project |
+| `merge_request_iid` | string | ✓ | The IID of the merge request |
+| `direction` | enum (`blocked_by` \| `blocking`) |  | blocked_by (default): MRs that must merge first. blocking: MRs this one blocks. |
+
+### `create_merge_request_dependency`
+
+*✏️ Writes*
+
+Make a merge request depend on (be blocked by) another merge request. The merge request cannot merge until the blocking one merges. `blocking_merge_request` is `{project_id, merge_request_iid}` or the global MR `id`. GitLab returns 409 if the dependency exists.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|:-:|---|
+| `project_id` | string | ✓ | Project ID or complete URL-encoded path to project |
+| `merge_request_iid` | string | ✓ | The IID of the merge request to block |
+| `blocking_merge_request` | object \| integer | ✓ | The MR that must merge first |
+
+### `delete_merge_request_dependency`
+
+*✏️ Writes*
+
+Remove a dependency from a merge request. Take `block_id` from `list_merge_request_dependencies`. The merge requests are not changed.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|:-:|---|
+| `project_id` | string | ✓ | Project ID or complete URL-encoded path to project |
+| `merge_request_iid` | string | ✓ | The IID of the blocked merge request |
+| `block_id` | string | ✓ | Block `id` from list_merge_request_dependencies |
+
 ### `list_merge_request_pipelines`
 
 *📖 Read-only*
@@ -204,6 +249,7 @@ Get details of a merge request (merge_request_iid or source_branch required). Se
 | `merge_request_iid` | string |  | Merge request IID |
 | `source_branch` | string |  | Source branch name |
 | `include_summaries` | boolean |  | If true, include deployment, commit, and approval summaries (extra API calls). Default false. |
+| `include_dependencies` | boolean |  | If true, add `blocked_by` and `blocking` (dependency blocks; 2 extra API calls). Default false. |
 
 ### `get_merge_request_diffs`
 
@@ -321,6 +367,8 @@ Update a merge request (merge_request_iid or source_branch required). Use the cr
 | `squash` | boolean |  | Squash commits on merge |
 | `draft` | boolean |  | Draft / WIP |
 | `milestone_id` | string |  | Milestone ID. 0 unassigns. Null is omitted. |
+| `add_blocking_merge_requests` | array<object \| integer> |  | MRs to add as blockers; failures in `dependency_errors` |
+| `remove_blocking_merge_requests` | array<object \| integer> |  | Blocking MRs to remove; failures in `dependency_errors` |
 
 ### `create_merge_request`
 
@@ -345,6 +393,7 @@ Create a new merge request. Open a merge request from an existing source branch 
 | `allow_collaboration` | boolean |  | Allow eligible upstream members to push to the fork source branch |
 | `remove_source_branch` | boolean \| null |  | Remove source branch on merge |
 | `squash` | boolean \| null |  | Squash commits on merge |
+| `blocking_merge_requests` | array<object \| integer> |  | MRs that must merge first; added after create, failures in `dependency_errors` |
 
 ### `list_merge_requests`
 
