@@ -11,6 +11,10 @@ const TOOL_GUIDANCE: Readonly<Record<string, string>> = {
     "Inspect approval rules and approvers before merging. Use `approve_merge_request` to change approval state.",
   get_merge_request_conflicts:
     "Inspect merge conflicts before `merge_merge_request`. It reports conflicts and does not resolve them.",
+  create_merge_request_dependency:
+    "The merge request cannot merge until the blocking one merges. `blocking_merge_request` is `{project_id, merge_request_iid}` or the global MR `id`. GitLab returns 409 if the dependency exists.",
+  delete_merge_request_dependency:
+    "Take `block_id` from `list_merge_request_dependencies`. The merge requests are not changed.",
   list_merge_request_pipelines:
     "List pipelines for one merge request. Use `list_pipelines` for project-wide filtering.",
   get_file_contents:

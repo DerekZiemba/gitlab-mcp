@@ -58,6 +58,8 @@ const GUIDES: Record<HelpTopic, string> = {
     "Lookup: project_id plus merge_request_iid (or source_branch).",
     "Inspect: get_merge_request, get_merge_request_approval_state, get_merge_request_conflicts.",
     "Discussions: mr_discussions, create_merge_request_thread, resolve_merge_request_thread.",
+    "Dependencies (merge order), GITLAB_TOOLSETS unset: blocking_merge_requests on create_merge_request, add_/remove_blocking_merge_requests on update_merge_request, include_dependencies on get_merge_request.",
+    "GITLAB_TOOLSETS set: list_merge_request_dependencies, create_merge_request_dependency, delete_merge_request_dependency.",
     "merge_merge_request needs merge permission and often sha from get_merge_request.",
   ].join("\n"),
   issues: [

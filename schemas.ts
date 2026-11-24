@@ -2302,6 +2302,24 @@ export const MarkTodoDoneSchema = z.object({
 
 export const MarkAllTodosDoneSchema = z.object({});
 
+// Merge request dependencies (REST `blocks` API)
+export const GitLabMergeRequestBlockSchema = z
+  .object({
+    id: z.coerce.number(),
+    // Absent when the caller cannot read the blocking merge request.
+    blocking_merge_request: z.object({ id: z.coerce.number() }).passthrough().optional(),
+  })
+  .passthrough();
+
+/** A blocking MR: its global `id`, or its project and `iid`. */
+export const BlockingMergeRequestRefSchema = z.union([
+  z.object({
+    project_id: z.coerce.string().describe("Project ID or URL-encoded path"),
+    merge_request_iid: z.coerce.string().describe("Merge request IID"),
+  }),
+  z.coerce.number().int().positive().describe("Global MR `id` (not `iid`)"),
+]);
+
 const MergeRequestOptionsSchema = {
   title: z.string().describe("Merge request title"),
   description: z.string().optional().describe("Merge request description"),
@@ -2321,6 +2339,13 @@ const MergeRequestOptionsSchema = {
 };
 export const CreateMergeRequestOptionsSchema = z.object(MergeRequestOptionsSchema);
 export const CreateMergeRequestSchema = ProjectParamsSchema.extend(MergeRequestOptionsSchema);
+/** create_merge_request when GITLAB_TOOLSETS is unset (see tools/merge-request-dependencies.ts). */
+export const CreateMergeRequestWithDependenciesSchema = CreateMergeRequestSchema.extend({
+  blocking_merge_requests: z
+    .array(BlockingMergeRequestRefSchema)
+    .optional()
+    .describe("MRs that must merge first; added after create, failures in `dependency_errors`"),
+});
 
 export const ForkRepositorySchema = ProjectParamsSchema.extend({
   namespace: z.string().optional().describe("Namespace to fork to (full path)"),
@@ -2622,6 +2647,12 @@ export const GetMergeRequestSchema = MergeRequestParamsSchema.extend({
     "If true, include deployment, commit, and approval summaries (extra API calls). Default false."
   ),
 });
+/** get_merge_request when GITLAB_TOOLSETS is unset (see tools/merge-request-dependencies.ts). */
+export const GetMergeRequestWithDependenciesSchema = GetMergeRequestSchema.extend({
+  include_dependencies: flexibleBooleanOptional.describe(
+    "If true, add `blocked_by` and `blocking` (dependency blocks; 2 extra API calls). Default false."
+  ),
+});
 
 export const UpdateMergeRequestSchema = MergeRequestParamsSchema.extend({
   title: z.string().optional().describe("MR title"),
@@ -2637,6 +2668,17 @@ export const UpdateMergeRequestSchema = MergeRequestParamsSchema.extend({
   milestone_id: z
     .preprocess(val => (val === null ? undefined : val), z.coerce.string().optional())
     .describe("Milestone ID. 0 unassigns. Null is omitted."),
+});
+/** update_merge_request when GITLAB_TOOLSETS is unset (see tools/merge-request-dependencies.ts). */
+export const UpdateMergeRequestWithDependenciesSchema = UpdateMergeRequestSchema.extend({
+  add_blocking_merge_requests: z
+    .array(BlockingMergeRequestRefSchema)
+    .optional()
+    .describe("MRs to add as blockers; failures in `dependency_errors`"),
+  remove_blocking_merge_requests: z
+    .array(BlockingMergeRequestRefSchema)
+    .optional()
+    .describe("Blocking MRs to remove; failures in `dependency_errors`"),
 });
 
 export const MergeMergeRequestSchema = ProjectParamsSchema.extend({
@@ -2796,6 +2838,31 @@ export const ListMergeRequestPipelinesSchema = ProjectParamsSchema.extend({
     )
     .describe("The internal ID of the merge request"),
 }).merge(PaginationOptionsSchema);
+
+// Dedicated dependency tools, listed only when GITLAB_TOOLSETS is set
+// (see tools/merge-request-dependencies.ts).
+export const ListMergeRequestDependenciesSchema = ProjectParamsSchema.extend({
+  merge_request_iid: z.coerce.string().describe("The IID of the merge request"),
+  direction: z
+    .enum(["blocked_by", "blocking"])
+    .optional()
+    .default("blocked_by")
+    .describe("blocked_by (default): MRs that must merge first. blocking: MRs this one blocks."),
+});
+
+export const CreateMergeRequestDependencySchema = ProjectParamsSchema.extend({
+  merge_request_iid: z.coerce.string().describe("The IID of the merge request to block"),
+  blocking_merge_request: BlockingMergeRequestRefSchema.describe(
+    "The MR that must merge first"
+  ),
+});
+
+export const DeleteMergeRequestDependencySchema = ProjectParamsSchema.extend({
+  merge_request_iid: z.coerce.string().describe("The IID of the blocked merge request"),
+  block_id: z.coerce
+    .string()
+    .describe("Block `id` from list_merge_request_dependencies"),
+});
 
 export const GetMergeRequestDiffsSchema = MergeRequestParamsSchema.extend({
   view: z.enum(["inline", "parallel"]).optional().describe("Diff view type"),
@@ -4425,6 +4492,8 @@ export type GitLabReference = z.infer<typeof GitLabReferenceSchema>;
 export type CreateRepositoryOptions = z.infer<typeof CreateRepositoryOptionsSchema>;
 export type CreateIssueOptions = z.infer<typeof CreateIssueOptionsSchema>;
 export type CreateMergeRequestOptions = z.infer<typeof CreateMergeRequestOptionsSchema>;
+export type BlockingMergeRequestRef = z.infer<typeof BlockingMergeRequestRefSchema>;
+export type GitLabMergeRequestBlock = z.infer<typeof GitLabMergeRequestBlockSchema>;
 export type CreateBranchOptions = z.infer<typeof CreateBranchOptionsSchema>;
 export type GitLabCreateUpdateFileResponse = z.infer<typeof GitLabCreateUpdateFileResponseSchema>;
 export type GitLabSearchResponse = z.infer<typeof GitLabSearchResponseSchema>;
