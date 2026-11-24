@@ -97,6 +97,7 @@ const LIST_SUMMARY_DEFAULT_EXCLUDED_TOOLS = new Set([
   "list_work_item_statuses", // single object
   // The summary drops an id or type that callers pass to other tools.
   "list_issue_links", // issue_link_id, link_type
+  "list_merge_request_dependencies", // blocking_merge_request, blocked_merge_request
   "list_pipeline_trigger_jobs", // downstream_pipeline.id
   "list_project_variables", // environment_scope, variable_type
   "list_group_variables", // environment_scope, variable_type

@@ -95,6 +95,7 @@ Get details of a merge request (merge_request_iid or source_branch required). Se
 | `merge_request_iid` | string |  | Merge request IID |
 | `source_branch` | string |  | Source branch name |
 | `include_summaries` | boolean |  | If true, include deployment, commit, and approval summaries (extra API calls). Default false. |
+| `include_dependencies` | boolean |  | If true, add `blocked_by` and `blocking` (dependency blocks; 2 extra API calls). Default false. |
 
 ### `get_merge_request_approval_state`
 
@@ -256,6 +257,7 @@ Create a new merge request. Open a merge request from an existing source branch 
 | `allow_collaboration` | boolean |  | Allow eligible upstream members to push to the fork source branch |
 | `remove_source_branch` | boolean \| null |  | Remove source branch on merge |
 | `squash` | boolean \| null |  | Squash commits on merge |
+| `blocking_merge_requests` | array<object \| integer> |  | MRs that must merge first; added after create, failures in `dependency_errors` |
 
 ### `create_merge_request_thread`
 
@@ -312,6 +314,8 @@ Update a merge request (merge_request_iid or source_branch required). Use the cr
 | `squash` | boolean |  | Squash commits on merge |
 | `draft` | boolean |  | Draft / WIP |
 | `milestone_id` | string |  | Milestone ID. 0 unassigns. Null is omitted. |
+| `add_blocking_merge_requests` | array<object \| integer> |  | MRs to add as blockers; failures in `dependency_errors` |
+| `remove_blocking_merge_requests` | array<object \| integer> |  | Blocking MRs to remove; failures in `dependency_errors` |
 
 ### `list_issues`
 

@@ -19,7 +19,7 @@
 
 📖 **[Documentation →](https://zereight.github.io/gitlab-mcp/)** · [llms.txt](./llms.txt) · [llms-full.txt](./llms-full.txt)
 
-**Default: 40 tools** (38 `core` + `discover_tools` + `help`). 291 tools exist in total (288 in toolsets + `execute_graphql` + `discover_tools` + `help`). Start lean; call `discover_tools` to activate more for this session.
+**Default: 40 tools** (38 `core` + `discover_tools` + `help`). 294 tools exist in total (291 in toolsets + `execute_graphql` + `discover_tools` + `help`). Start lean; call `discover_tools` to activate more for this session.
 
 > **Token budget:** MCP clients send the whole `tools/list` to the model at session start. Keep the default (~40 tools, ~12k schema tokens). Call `discover_tools` to activate a category for this session (session-only; with `OAUTH_STATELESS_MODE=true` persist a named `GITLAB_TOOLSETS` list), or use [Skill + CLI](./docs/getting-started/cli-without-mcp.md) and skip MCP schemas. **Do not set `GITLAB_TOOLSETS=all`** — it loads ~all tools and costs ~73k schema tokens. See [tools/list size](#toolslist-size-measured-2026-11-14) and [comparison](./docs/comparison/index.md).
 
@@ -153,7 +153,7 @@ Supports PAT, OAuth, read-only mode, dynamic API URLs, and remote authorization 
 
 ### Why use this GitLab MCP?
 
-- **Default 40 tools (38 `core` + `discover_tools` + `help`); 291 total** — start lean; call `discover_tools` to activate more without CQRS-style grouping. `GITLAB_TOOLSETS=all` loads ~all schemas (~73k tokens); prefer discover-on-demand or Skill + CLI
+- **Default 40 tools (38 `core` + `discover_tools` + `help`); 294 total** — start lean; call `discover_tools` to activate more without CQRS-style grouping. `GITLAB_TOOLSETS=all` loads ~all schemas (~73k tokens); prefer discover-on-demand or Skill + CLI
 - **MR 2-step review** — `list_merge_request_changed_files` → batched `get_merge_request_file_diff`
 - **Agent Skill built in** — workflow guidance in `skills/gitlab-mcp/`
 - **Flexible auth** — Personal Access Token, local OAuth2 browser flow, MCP OAuth proxy, and per-request remote authorization
@@ -167,7 +167,7 @@ Supports PAT, OAuth, read-only mode, dynamic API URLs, and remote authorization 
 |                | @zereight/mcp-gitlab                                              | GitLab MCP A (community CQRS-style)          | GitLab official MCP server                                                                                                                       |
 | -------------- | ----------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Best for**   | AI agent workflows                                                | Enterprise multi-instance / grouped tools    | Built into GitLab, no separate install                                                                                                           |
-| **Tool model** | 291 tools: 288 in toolsets + `execute_graphql` + `discover_tools` + `help` | ~50–60 grouped `browse_*` / `manage_*` tools | Toolsets chosen with an HTTP header                                                                                                              |
+| **Tool model** | 294 tools: 291 in toolsets + `execute_graphql` + `discover_tools` + `help` | ~50–60 grouped `browse_*` / `manage_*` tools | Toolsets chosen with an HTTP header                                                                                                              |
 | **MR review**  | 2-step batched diff                                               | Varies                                       | `get_merge_request` with diffs                                                                                                                   |
 | **Node.js**    | >=20.0.0                                                          | Often >=24                                   | Node.js 20+ for stdio via `mcp-remote`                                                                                                           |
 | **License**    | MIT                                                               | Varies                                       | Part of GitLab                                                                                                                                   |
@@ -1079,9 +1079,12 @@ Register the skill directory in your AI client to get optimal tool usage guidanc
 286. `list_project_runners` - List runners available to a project (type, status, paused, tag_list). Omits registration and authentication tokens.
 287. `get_runner` - Get a runner's tag_list, run_untagged, locked, and access_level. When a project allowlist is active, the runner must be available to an allowed project. Omits registration and authentication tokens.
 288. `rebase_merge_request` - Rebase the source branch of a merge request onto its target branch
-289. `gitlab_api_request` - Send one GitLab REST call under /api/v4. Enabled only when GITLAB_TOOLSETS lists api. Readonly allows GET; modify rejects DELETE.
-290. `discover_tools` - List or activate a toolset for this session. Omit category to list; pass one to enable. Prefer this over GITLAB_TOOLSETS=all (loads ~all schemas). Session-only; with OAUTH_STATELESS_MODE=true persist GITLAB_TOOLSETS.
-291. `help` - Return a short GitLab workflow guide. Omit topic for the overview and topic list.
+289. `list_merge_request_dependencies` - List the merge requests that block a merge request, or that it blocks. Listed only when GITLAB_TOOLSETS is set; unset, use the dependency params on create/update/get_merge_request ([details](docs/configuration/environment-variables.md#gitlab_toolsets)).
+290. `create_merge_request_dependency` - Make a merge request depend on (be blocked by) another merge request. Listed only when GITLAB_TOOLSETS is set; unset, use the dependency params on create/update/get_merge_request ([details](docs/configuration/environment-variables.md#gitlab_toolsets)).
+291. `delete_merge_request_dependency` - Remove a dependency from a merge request. Listed only when GITLAB_TOOLSETS is set; unset, use the dependency params on create/update/get_merge_request ([details](docs/configuration/environment-variables.md#gitlab_toolsets)).
+292. `gitlab_api_request` - Send one GitLab REST call under /api/v4. Enabled only when GITLAB_TOOLSETS lists api. Readonly allows GET; modify rejects DELETE.
+293. `discover_tools` - List or activate a toolset for this session. Omit category to list; pass one to enable. Prefer this over GITLAB_TOOLSETS=all (loads ~all schemas). Session-only; with OAUTH_STATELESS_MODE=true persist GITLAB_TOOLSETS.
+294. `help` - Return a short GitLab workflow guide. Omit topic for the overview and topic list.
 
 <!-- TOOLS-END -->
 

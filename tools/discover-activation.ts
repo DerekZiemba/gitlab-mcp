@@ -29,6 +29,8 @@ export interface UnavailableToolMessageInput {
   readonly toolset: string | undefined;
   readonly deniedByRegex: boolean;
   readonly excludedBySlimProfile: boolean;
+  /** A dedicated MR dependency tool while GITLAB_TOOLSETS is unset. */
+  readonly excludedByDependencyParams?: boolean;
   readonly enabledByCurrentToolsets: boolean;
   readonly explicitToolsetOnly?: boolean;
 }
@@ -42,6 +44,10 @@ export function buildUnavailableToolMessage(input: UnavailableToolMessageInput):
   const toolset = input.toolset;
   if (toolset === undefined || input.deniedByRegex) {
     return appendRecoveryHint(base);
+  }
+  if (input.excludedByDependencyParams) {
+    // No generic "call discover_tools" hint: discover_tools does not add this tool.
+    return `${base}. While GITLAB_TOOLSETS is unset, use blocking_merge_requests on create_merge_request, add_blocking_merge_requests / remove_blocking_merge_requests on update_merge_request, and include_dependencies on get_merge_request. To list "${input.toolName}", add it to GITLAB_TOOLS or set GITLAB_TOOLSETS.`;
   }
   if (input.excludedBySlimProfile) {
     return appendRecoveryHint(

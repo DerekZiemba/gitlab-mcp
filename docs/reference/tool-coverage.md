@@ -8,9 +8,9 @@ A tool counts as invoked when a test sends that name through MCP (`callTool` / `
 
 | | |
 | --- | ---: |
-| Tools | 291 |
-| Invoked | 192 |
-| Coverage | 66.0% |
+| Tools | 294 |
+| Invoked | 196 |
+| Coverage | 66.7% |
 
 ## By toolset
 
@@ -20,7 +20,7 @@ A tool counts as invoked when a test sends that name through MCP (`callTool` / `
 | [Projects & Files](#repositories) | 7 | 8 | 87.5% |
 | [Branches & Commits](#branches) | 7 | 16 | 43.8% |
 | [Groups](#groups) | 1 | 1 | 100.0% |
-| [Merge Requests](#merge_requests) | 16 | 46 | 34.8% |
+| [Merge Requests](#merge_requests) | 20 | 49 | 40.8% |
 | [Issues](#issues) | 14 | 27 | 51.9% |
 | [Labels](#labels) | 5 | 5 | 100.0% |
 | [Work Items](#workitems) | 5 | 18 | 27.8% |
@@ -118,16 +118,19 @@ A tool counts as invoked when a test sends that name through MCP (`callTool` / `
 - [ ] [`get_branch`](../tools/merge-requests.md#get_branch)
 - [ ] [`list_branches`](../tools/merge-requests.md#list_branches)
 - [x] [`get_merge_request_conflicts`](../tools/merge-requests.md#get_merge_request_conflicts) — `test/test-merge-request-conflicts.ts`
+- [x] [`list_merge_request_dependencies`](../tools/merge-requests.md#list_merge_request_dependencies) — `test/test-merge-request-dependencies.ts`
+- [x] [`create_merge_request_dependency`](../tools/merge-requests.md#create_merge_request_dependency) — `test/test-merge-request-dependencies.ts`
+- [x] [`delete_merge_request_dependency`](../tools/merge-requests.md#delete_merge_request_dependency) — `test/test-merge-request-dependencies.ts`
 - [x] [`list_merge_request_pipelines`](../tools/merge-requests.md#list_merge_request_pipelines) — `test/test-merge-request-pipelines.ts`
-- [x] [`get_merge_request`](../tools/merge-requests.md#get_merge_request) — `test/gitlab-api-tool-errors.test.ts`, `test/test-deployment-tools.ts`
+- [x] [`get_merge_request`](../tools/merge-requests.md#get_merge_request) — `test/gitlab-api-tool-errors.test.ts`, `test/test-deployment-tools.ts`, `test/test-merge-request-dependencies.ts`
 - [x] [`get_merge_request_diffs`](../tools/merge-requests.md#get_merge_request_diffs) — `test/test-mr-diffs-filter.ts`, `test/test-structured-content-675.ts`
 - [x] [`list_merge_request_changed_files`](../tools/merge-requests.md#list_merge_request_changed_files) — `test/test-mr-file-diffs.ts`
 - [ ] [`list_merge_request_diffs`](../tools/merge-requests.md#list_merge_request_diffs)
 - [x] [`get_merge_request_file_diff`](../tools/merge-requests.md#get_merge_request_file_diff) — `test/test-mr-file-diffs.ts`
 - [ ] [`list_merge_request_versions`](../tools/merge-requests.md#list_merge_request_versions)
 - [ ] [`get_merge_request_version`](../tools/merge-requests.md#get_merge_request_version)
-- [ ] [`update_merge_request`](../tools/merge-requests.md#update_merge_request)
-- [x] [`create_merge_request`](../tools/merge-requests.md#create_merge_request) — `test/allowed-project-target-scope.test.ts`, `test/gitlab-api-tool-errors.test.ts`, `test/response-masking.test.ts`
+- [x] [`update_merge_request`](../tools/merge-requests.md#update_merge_request) — `test/test-merge-request-dependencies.ts`
+- [x] [`create_merge_request`](../tools/merge-requests.md#create_merge_request) — `test/allowed-project-target-scope.test.ts`, `test/gitlab-api-tool-errors.test.ts`, `test/response-masking.test.ts`, `test/test-merge-request-dependencies.ts`
 - [x] [`list_merge_requests`](../tools/merge-requests.md#list_merge_requests) — `test/compact-replay-quoting.test.ts`, `test/remote-auth-tests.ts`, `test/response-masking.test.ts`, `test/test-all-transport-server.ts`, `test/test-list-merge-requests.ts`, `test/test-merge-request-approvals.ts`
 - [x] [`list_group_merge_requests`](../tools/merge-requests.md#list_group_merge_requests) — `test/response-masking.test.ts`, `test/test-list-group-merge-requests.ts`
 - [ ] [`get_branch_diffs`](../tools/merge-requests.md#get_branch_diffs)
@@ -451,5 +454,5 @@ A tool counts as invoked when a test sends that name through MCP (`callTool` / `
 <a id="meta"></a>
 
 - [x] [`execute_graphql`](../tools/meta.md#execute_graphql) — `test/api-url-credentials.test.ts`, `test/live/execute-graphql-credential-fields.test.ts`, `test/test-audit-log.ts`, `test/test-dynamic-project-scope.ts`, `test/test-execute-graphql-credential-fields.ts`, `test/test-permission-mode.ts`
-- [x] [`discover_tools`](../tools/meta.md#discover_tools) — `test/lazy-tool-schemas-stdio.test.ts`, `test/streamable-http-sse-stream.test.ts`, `test/test-gitlab-api-request.ts`, `test/test-permission-mode.ts`, `test/test-token-optimizations.ts`, `test/utils/tool-profile-server.test.ts`
+- [x] [`discover_tools`](../tools/meta.md#discover_tools) — `test/lazy-tool-schemas-stdio.test.ts`, `test/streamable-http-sse-stream.test.ts`, `test/test-gitlab-api-request.ts`, `test/test-merge-request-dependencies.ts`, `test/test-permission-mode.ts`, `test/test-token-optimizations.ts`, `test/utils/tool-profile-server.test.ts`
 - [ ] [`help`](../tools/meta.md#help)

@@ -1,6 +1,7 @@
 import { lazyJSONSchema, withLazyInputSchemas } from "../utils/schema.js";
 import { SSE, STREAMABLE_HTTP } from "../config.js";
 import { getToolDescription } from "./tool-descriptions.js";
+import { MERGE_REQUEST_DEPENDENCY_PARAMS } from "./merge-request-dependencies.js";
 import {
   ApproveMergeRequestSchema,
   BulkPublishDraftNotesSchema,
@@ -289,6 +290,12 @@ import {
   GetVulnerabilitySchema,
   DismissVulnerabilitySchema,
   ConfirmVulnerabilitySchema,
+  ListMergeRequestDependenciesSchema,
+  CreateMergeRequestDependencySchema,
+  DeleteMergeRequestDependencySchema,
+  CreateMergeRequestWithDependenciesSchema,
+  GetMergeRequestWithDependenciesSchema,
+  UpdateMergeRequestWithDependenciesSchema,
 } from "../schemas.js";
 import { GitLabApiRequestSchema } from "./gitlab-api-request.js";
 import { HelpInputSchema } from "../server/mcp-help.js";
@@ -376,7 +383,11 @@ export const allTools = withLazyInputSchemas([
   {
     name: "create_merge_request",
     description: "Create a new merge request",
-    inputSchema: lazyJSONSchema(CreateMergeRequestSchema),
+    inputSchema: lazyJSONSchema(
+      MERGE_REQUEST_DEPENDENCY_PARAMS
+        ? CreateMergeRequestWithDependenciesSchema
+        : CreateMergeRequestSchema
+    ),
   },
   {
     name: "fork_repository",
@@ -438,7 +449,11 @@ export const allTools = withLazyInputSchemas([
     name: "get_merge_request",
     description:
       "Get details of a merge request (merge_request_iid or source_branch required). Set include_summaries=true for deployment/commit/approval summaries",
-    inputSchema: lazyJSONSchema(GetMergeRequestSchema),
+    inputSchema: lazyJSONSchema(
+      MERGE_REQUEST_DEPENDENCY_PARAMS
+        ? GetMergeRequestWithDependenciesSchema
+        : GetMergeRequestSchema
+    ),
   },
   {
     name: "get_merge_request_diffs",
@@ -482,7 +497,11 @@ export const allTools = withLazyInputSchemas([
   {
     name: "update_merge_request",
     description: "Update a merge request (merge_request_iid or source_branch required)",
-    inputSchema: lazyJSONSchema(UpdateMergeRequestSchema),
+    inputSchema: lazyJSONSchema(
+      MERGE_REQUEST_DEPENDENCY_PARAMS
+        ? UpdateMergeRequestWithDependenciesSchema
+        : UpdateMergeRequestSchema
+    ),
   },
   {
     name: "create_note",
@@ -1805,6 +1824,22 @@ export const allTools = withLazyInputSchemas([
     description: "Rebase the source branch of a merge request onto its target branch",
     inputSchema: lazyJSONSchema(RebaseMergeRequestSchema),
   },
+  // Not listed or activated while GITLAB_TOOLSETS is unset (see merge-request-dependencies.ts).
+  {
+    name: "list_merge_request_dependencies",
+    description: "List the merge requests that block a merge request, or that it blocks",
+    inputSchema: lazyJSONSchema(ListMergeRequestDependenciesSchema),
+  },
+  {
+    name: "create_merge_request_dependency",
+    description: "Make a merge request depend on (be blocked by) another merge request",
+    inputSchema: lazyJSONSchema(CreateMergeRequestDependencySchema),
+  },
+  {
+    name: "delete_merge_request_dependency",
+    description: "Remove a dependency from a merge request",
+    inputSchema: lazyJSONSchema(DeleteMergeRequestDependencySchema),
+  },
   // --- Explicit opt-in raw API. Not in `all` and not activatable via discover_tools. ---
   {
     name: "gitlab_api_request",
@@ -1974,6 +2009,7 @@ export const readOnlyTools = new Set([
   "list_work_item_note_emoji_reactions",
   "get_timeline_events",
   "get_merge_request_conflicts",
+  "list_merge_request_dependencies",
   "list_webhooks",
   "list_webhook_events",
   "get_webhook_event",
@@ -2039,6 +2075,7 @@ export const destructiveTools = new Set([
   "delete_snippet",
   "delete_merge_request_note",
   "delete_merge_request_discussion_note",
+  "delete_merge_request_dependency",
   "delete_draft_note",
   "delete_merge_request_emoji_reaction",
   "delete_merge_request_note_emoji_reaction",
@@ -2091,6 +2128,7 @@ export const deleteTools = new Set([
   "delete_issue_link",
   "delete_issue_note_emoji_reaction",
   "delete_label",
+  "delete_merge_request_dependency",
   "delete_merge_request_discussion_note",
   "delete_merge_request_emoji_reaction",
   "delete_merge_request_note",
@@ -2213,6 +2251,9 @@ export const TOOLSET_DEFINITIONS: readonly ToolsetDefinition[] = [
       "get_branch",
       "list_branches",
       "get_merge_request_conflicts",
+      "list_merge_request_dependencies",
+      "create_merge_request_dependency",
+      "delete_merge_request_dependency",
       "list_merge_request_pipelines",
       "get_merge_request",
       "get_merge_request_diffs",

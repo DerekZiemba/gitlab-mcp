@@ -9,7 +9,11 @@ export function recoveryHintFor(message: string): string | undefined {
     return undefined;
   }
   if (/is not available on this server/i.test(message)) {
-    if (/slim tool profile/i.test(message) || /cannot activate/i.test(message)) {
+    if (
+      /slim tool profile/i.test(message) ||
+      /cannot activate/i.test(message) ||
+      /While GITLAB_TOOLSETS is unset/.test(message)
+    ) {
       return undefined;
     }
     if (/discover_tools|GITLAB_TOOLSETS|GITLAB_TOOLS/.test(message)) {

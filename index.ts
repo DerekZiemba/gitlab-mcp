@@ -388,6 +388,10 @@ import {
   type ListedToolDecorationContext,
 } from "./tools/listed-tools.js";
 import { isExcludedBySlimProfile, shouldApplySlimToolProfile } from "./tools/tool-profile.js";
+import {
+  MERGE_REQUEST_DEPENDENCY_PARAMS,
+  isExcludedByDependencyParams,
+} from "./tools/merge-request-dependencies.js";
 import { shouldCompactToolResult } from "./utils/compact-tool-allowlist.js";
 import {
   BulkPublishDraftNotesSchema,
@@ -412,7 +416,6 @@ import {
   ListMergeRequestEmojiReactionsSchema,
   ListMergeRequestNoteEmojiReactionsSchema,
   CreateMergeRequestOptionsSchema,
-  CreateMergeRequestSchema,
   CreateMergeRequestThreadSchema,
   CreateNoteSchema,
   CreateCommitStatusSchema,
@@ -452,7 +455,6 @@ import {
   GetIssueLinkSchema,
   GetIssueSchema,
   GetMergeRequestDiffsSchema,
-  GetMergeRequestSchema,
   GetDeploymentSchema,
   CreateDeploymentSchema,
   UpdateDeploymentSchema,
@@ -667,6 +669,15 @@ import {
   RebaseMergeRequestSchema,
   GetMergeRequestApprovalStateSchema,
   GetMergeRequestConflictsSchema,
+  type BlockingMergeRequestRef,
+  type GitLabMergeRequestBlock,
+  GitLabMergeRequestBlockSchema,
+  CreateMergeRequestWithDependenciesSchema,
+  GetMergeRequestWithDependenciesSchema,
+  UpdateMergeRequestWithDependenciesSchema,
+  ListMergeRequestDependenciesSchema,
+  CreateMergeRequestDependencySchema,
+  DeleteMergeRequestDependencySchema,
   GitLabMergeRequestApprovalStateSchema,
   type GitLabMergeRequestApprovalState,
   type MergeRequestThreadPosition,
@@ -783,7 +794,12 @@ function buildToolUnavailableMessage(toolName: string): string {
     toolName,
     toolset,
     deniedByRegex: GITLAB_DENIED_TOOLS_REGEX?.test(toolName) === true,
-    excludedBySlimProfile: isExcludedFromToolsetListing(toolName),
+    excludedBySlimProfile: isExcludedBySlimProfile(
+      toolName,
+      applySlimProfile,
+      individuallyEnabledTools
+    ),
+    excludedByDependencyParams: isExcludedByDependencyParamsMode(toolName),
     enabledByCurrentToolsets: isToolInEnabledToolset(toolName, enabledToolsets),
     explicitToolsetOnly: toolset !== undefined && isExplicitOnlyToolsetId(toolset),
   });
@@ -2065,7 +2081,19 @@ if (GITLAB_TOOL_PROFILE === "slim" && !applySlimProfile) {
 }
 
 function isExcludedFromToolsetListing(toolName: string): boolean {
-  return isExcludedBySlimProfile(toolName, applySlimProfile, individuallyEnabledTools);
+  return (
+    isExcludedBySlimProfile(toolName, applySlimProfile, individuallyEnabledTools) ||
+    isExcludedByDependencyParamsMode(toolName)
+  );
+}
+
+/** GITLAB_TOOLSETS unset: the core MR tools carry the dependency params instead. */
+function isExcludedByDependencyParamsMode(toolName: string): boolean {
+  return isExcludedByDependencyParams(
+    toolName,
+    MERGE_REQUEST_DEPENDENCY_PARAMS,
+    individuallyEnabledTools
+  );
 }
 
 if (enabledToolsets.has("api")) {
@@ -6126,6 +6154,251 @@ async function listMergeRequestPipelines(
   await handleGitLabError(response);
   const data = await response.json();
   return z.array(GitLabMergeRequestPipelineSchema).parse(data);
+}
+
+/**
+ * List the dependency blocks of a merge request.
+ *
+ * @param {string} projectId - The ID or URL-encoded path of the project
+ * @param {string | number} mergeRequestIid - The internal ID of the merge request
+ * @param {"blocks" | "blockees"} resource - blocks: MRs blocking this one; blockees: MRs it blocks
+ * @returns Block records (`id`, `blocking_merge_request`, `blocked_merge_request`, ...)
+ */
+async function listMergeRequestBlocks(
+  projectId: string,
+  mergeRequestIid: string | number,
+  resource: "blocks" | "blockees"
+): Promise<GitLabMergeRequestBlock[]> {
+  projectId = decodeURIComponent(projectId);
+  const url = new URL(
+    `${getEffectiveApiUrl()}/projects/${encodeGitLabPathSegment(
+      getEffectiveProjectId(projectId)
+    )}/merge_requests/${encodeGitLabPathSegment(mergeRequestIid)}/${resource}`
+  );
+
+  const response = await fetch(url.toString(), {
+    ...getFetchConfig(),
+  });
+
+  await handleGitLabError(response);
+  const data = await response.json();
+  return z.array(GitLabMergeRequestBlockSchema).parse(data);
+}
+
+/** Look up the global `id` of a merge request from its project and `iid`. */
+async function getMergeRequestGlobalId(
+  projectId: string,
+  mergeRequestIid: string | number
+): Promise<number> {
+  projectId = decodeURIComponent(projectId);
+  const url = new URL(
+    `${getEffectiveApiUrl()}/projects/${encodeGitLabPathSegment(
+      getEffectiveProjectId(projectId)
+    )}/merge_requests/${encodeGitLabPathSegment(mergeRequestIid)}`
+  );
+
+  const response = await fetch(url.toString(), {
+    ...getFetchConfig(),
+  });
+
+  await handleGitLabError(response);
+  const data = await response.json();
+  return z.object({ id: z.coerce.number() }).parse(data).id;
+}
+
+/**
+ * Resolve a blocking MR reference to its global `id`. A `{project_id, merge_request_iid}`
+ * reference is looked up, which also applies the project allowlist to that project.
+ */
+async function resolveBlockingMergeRequestId(ref: BlockingMergeRequestRef): Promise<number> {
+  if (typeof ref === "number") {
+    return ref;
+  }
+
+  return getMergeRequestGlobalId(ref.project_id, ref.merge_request_iid);
+}
+
+/**
+ * Make a merge request depend on (be blocked by) another merge request.
+ *
+ * @param {string} projectId - The ID or URL-encoded path of the blocked merge request's project
+ * @param {string | number} mergeRequestIid - The internal ID of the merge request to block
+ * @param {number} blockingMergeRequestId - The global ID of the blocking merge request
+ * @returns The created block record
+ */
+async function createMergeRequestDependency(
+  projectId: string,
+  mergeRequestIid: string | number,
+  blockingMergeRequestId: number
+): Promise<GitLabMergeRequestBlock> {
+  projectId = decodeURIComponent(projectId);
+  const url = new URL(
+    `${getEffectiveApiUrl()}/projects/${encodeGitLabPathSegment(
+      getEffectiveProjectId(projectId)
+    )}/merge_requests/${encodeGitLabPathSegment(mergeRequestIid)}/blocks`
+  );
+
+  const response = await fetch(url.toString(), {
+    ...getFetchConfig(),
+    method: "POST",
+    body: JSON.stringify({ blocking_merge_request_id: blockingMergeRequestId }),
+  });
+
+  await handleGitLabError(response);
+  const data = await response.json();
+  return GitLabMergeRequestBlockSchema.parse(data);
+}
+
+/**
+ * Remove a merge request dependency.
+ *
+ * @param {string} projectId - The ID or URL-encoded path of the project
+ * @param {string | number} mergeRequestIid - The internal ID of the blocked merge request
+ * @param {string | number} blockId - The ID of the block
+ */
+async function deleteMergeRequestDependency(
+  projectId: string,
+  mergeRequestIid: string | number,
+  blockId: string | number
+): Promise<void> {
+  projectId = decodeURIComponent(projectId);
+  const url = new URL(
+    `${getEffectiveApiUrl()}/projects/${encodeGitLabPathSegment(
+      getEffectiveProjectId(projectId)
+    )}/merge_requests/${encodeGitLabPathSegment(mergeRequestIid)}/blocks/${encodeGitLabPathSegment(
+      blockId
+    )}`
+  );
+
+  const response = await fetch(url.toString(), {
+    ...getFetchConfig(),
+    method: "DELETE",
+  });
+
+  await handleGitLabError(response);
+}
+
+interface MergeRequestDependencies {
+  readonly blocked_by: GitLabMergeRequestBlock[];
+  readonly blocking?: GitLabMergeRequestBlock[];
+  readonly blocking_error?: string;
+}
+
+/**
+ * Blocks in both directions for get_merge_request. `/blockees` is newer than `/blocks`, so
+ * its failure is reported in `blocking_error` instead of failing the whole call.
+ */
+async function getMergeRequestDependencies(
+  projectId: string,
+  mergeRequestIid: string | number
+): Promise<MergeRequestDependencies> {
+  const [blockedBy, blocking] = await Promise.allSettled([
+    listMergeRequestBlocks(projectId, mergeRequestIid, "blocks"),
+    listMergeRequestBlocks(projectId, mergeRequestIid, "blockees"),
+  ]);
+  if (blockedBy.status === "rejected") {
+    throw blockedBy.reason;
+  } else if (blocking.status === "rejected") {
+    const reason: unknown = blocking.reason;
+    const message = reason instanceof Error ? reason.message : String(reason);
+    return { blocked_by: blockedBy.value, blocking_error: message };
+  }
+
+  return { blocked_by: blockedBy.value, blocking: blocking.value };
+}
+
+/** One blocking MR that create/update_merge_request could not add or remove. */
+interface MergeRequestDependencyError {
+  readonly action: "add" | "remove";
+  readonly blocking_merge_request: BlockingMergeRequestRef;
+  readonly error: string;
+}
+
+function dependencyError(
+  action: MergeRequestDependencyError["action"],
+  ref: BlockingMergeRequestRef,
+  error: unknown
+): MergeRequestDependencyError {
+  const message = error instanceof Error ? error.message : String(error);
+  return { action, blocking_merge_request: ref, error: message };
+}
+
+async function addMergeRequestDependency(
+  projectId: string,
+  mergeRequestIid: string | number,
+  ref: BlockingMergeRequestRef
+): Promise<MergeRequestDependencyError | null> {
+  try {
+    const blockingId = await resolveBlockingMergeRequestId(ref);
+    await createMergeRequestDependency(projectId, mergeRequestIid, blockingId);
+    return null;
+  } catch (error) {
+    return dependencyError("add", ref, error);
+  }
+}
+
+async function removeMergeRequestDependency(
+  projectId: string,
+  mergeRequestIid: string | number,
+  ref: BlockingMergeRequestRef,
+  blocks: readonly GitLabMergeRequestBlock[]
+): Promise<MergeRequestDependencyError | null> {
+  try {
+    const blockingId = await resolveBlockingMergeRequestId(ref);
+    const block = blocks.find(b => b.blocking_merge_request?.id === blockingId);
+    if (!block) {
+      return dependencyError("remove", ref, `No dependency on merge request id ${blockingId}`);
+    }
+
+    await deleteMergeRequestDependency(projectId, mergeRequestIid, block.id);
+    return null;
+  } catch (error) {
+    return dependencyError("remove", ref, error);
+  }
+}
+
+/**
+ * Add and remove blocking MRs one by one. Not atomic: each failure is returned and the
+ * rest still run, so the merge request change that came before is never rolled back.
+ */
+async function applyMergeRequestDependencies(
+  projectId: string,
+  mergeRequestIid: string | number,
+  add: readonly BlockingMergeRequestRef[] = [],
+  remove: readonly BlockingMergeRequestRef[] = []
+): Promise<MergeRequestDependencyError[]> {
+  const errors: MergeRequestDependencyError[] = [];
+  if (remove.length > 0) {
+    let blocks: GitLabMergeRequestBlock[] = [];
+    let listError: unknown = null;
+    try {
+      blocks = await listMergeRequestBlocks(projectId, mergeRequestIid, "blocks");
+    } catch (error) {
+      listError = error;
+    }
+
+    for (const ref of remove) {
+      const failure = listError
+        ? dependencyError("remove", ref, listError)
+        : await removeMergeRequestDependency(projectId, mergeRequestIid, ref, blocks);
+      if (failure) errors.push(failure);
+    }
+  }
+
+  for (const ref of add) {
+    const failure = await addMergeRequestDependency(projectId, mergeRequestIid, ref);
+    if (failure) errors.push(failure);
+  }
+
+  return errors;
+}
+
+/** Attach `dependency_errors` only when something failed, so the usual reply is unchanged. */
+function withDependencyErrors<T extends object>(
+  result: T,
+  errors: readonly MergeRequestDependencyError[]
+): T | (T & { dependency_errors: readonly MergeRequestDependencyError[] }) {
+  return errors.length > 0 ? { ...result, dependency_errors: errors } : result;
 }
 
 async function getProjectMergeMethod(projectId: string): Promise<string | null> {
@@ -11664,11 +11937,31 @@ async function handleToolCall(params: any) {
       }
 
       case "create_merge_request": {
-        const args = CreateMergeRequestSchema.parse(params.arguments);
-        const { project_id, ...options } = args;
+        // The dependency param is listed only while GITLAB_TOOLSETS is unset; otherwise it is
+        // dropped like any unknown argument.
+        const args = CreateMergeRequestWithDependenciesSchema.parse(params.arguments);
+        const { project_id, blocking_merge_requests, ...options } = args;
         const mergeRequest = await createMergeRequest(project_id, options);
+        if (!MERGE_REQUEST_DEPENDENCY_PARAMS || !blocking_merge_requests?.length) {
+          return {
+            content: [{ type: "text", text: JSON.stringify(mergeRequest) }],
+          };
+        }
+
+        // With target_project_id the MR lives in the target project. Use the caller's id (not
+        // the numeric one GitLab returns) so a path-based allowlist still matches.
+        const dependencyErrors = await applyMergeRequestDependencies(
+          options.target_project_id ?? project_id,
+          mergeRequest.iid,
+          blocking_merge_requests
+        );
         return {
-          content: [{ type: "text", text: JSON.stringify(mergeRequest) }],
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(withDependencyErrors(mergeRequest, dependencyErrors)),
+            },
+          ],
         };
       }
 
@@ -11953,15 +12246,19 @@ async function handleToolCall(params: any) {
         return await handleTodoToolCall(params);
 
       case "get_merge_request": {
-        const args = GetMergeRequestSchema.parse(params.arguments);
+        const args = GetMergeRequestWithDependenciesSchema.parse(params.arguments);
         const mergeRequest = await getMergeRequest(
           args.project_id,
           args.merge_request_iid,
           args.source_branch
         );
+        const dependencies =
+          MERGE_REQUEST_DEPENDENCY_PARAMS && args.include_dependencies
+            ? await getMergeRequestDependencies(args.project_id, mergeRequest.iid)
+            : {};
         if (!args.include_summaries) {
           return {
-            content: [{ type: "text", text: JSON.stringify(mergeRequest) }],
+            content: [{ type: "text", text: JSON.stringify({ ...mergeRequest, ...dependencies }) }],
           };
         }
         const deploymentSummary = await buildMergeRequestDeploymentSummary(
@@ -11978,6 +12275,7 @@ async function handleToolCall(params: any) {
         );
         const mergeRequestWithDeploymentSummary: GitLabMergeRequestWithDeploymentSummary = {
           ...mergeRequest,
+          ...dependencies,
           deployment_summary: deploymentSummary,
           commit_addition_summary: commitAdditionSummary,
           approval_summary: approvalSummary,
@@ -12079,16 +12377,50 @@ async function handleToolCall(params: any) {
       }
 
       case "update_merge_request": {
-        const args = UpdateMergeRequestSchema.parse(params.arguments);
-        const { project_id, merge_request_iid, source_branch, ...options } = args;
-        const mergeRequest = await updateMergeRequest(
+        const args = UpdateMergeRequestWithDependenciesSchema.parse(params.arguments);
+        const {
           project_id,
-          options,
           merge_request_iid,
-          source_branch
+          source_branch,
+          add_blocking_merge_requests,
+          remove_blocking_merge_requests,
+          ...options
+        } = args;
+        const add = MERGE_REQUEST_DEPENDENCY_PARAMS ? (add_blocking_merge_requests ?? []) : [];
+        const remove = MERGE_REQUEST_DEPENDENCY_PARAMS
+          ? (remove_blocking_merge_requests ?? [])
+          : [];
+        if (GITLAB_PERMISSION_MODE === "modify" && remove.length > 0) {
+          throw new Error(
+            "update_merge_request does not allow remove_blocking_merge_requests in modify mode"
+          );
+        }
+        const hasDependencyChanges = add.length > 0 || remove.length > 0;
+        // GitLab rejects a PUT without fields, so a dependency-only update just reads the MR.
+        const hasFieldChanges = Object.values(options).some(value => value !== undefined);
+        const mergeRequest =
+          hasFieldChanges || !hasDependencyChanges
+            ? await updateMergeRequest(project_id, options, merge_request_iid, source_branch)
+            : await getMergeRequest(project_id, merge_request_iid, source_branch);
+        if (!hasDependencyChanges) {
+          return {
+            content: [{ type: "text", text: JSON.stringify(mergeRequest) }],
+          };
+        }
+
+        const dependencyErrors = await applyMergeRequestDependencies(
+          project_id,
+          mergeRequest.iid,
+          add,
+          remove
         );
         return {
-          content: [{ type: "text", text: JSON.stringify(mergeRequest) }],
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(withDependencyErrors(mergeRequest, dependencyErrors)),
+            },
+          ],
         };
       }
 
@@ -12171,6 +12503,48 @@ async function handleToolCall(params: any) {
         const conflicts = await getMergeRequestConflicts(args.project_id, args.merge_request_iid);
         return {
           content: [{ type: "text", text: JSON.stringify(conflicts) }],
+        };
+      }
+
+      case "list_merge_request_dependencies": {
+        const args = ListMergeRequestDependenciesSchema.parse(params.arguments);
+        const resource = args.direction === "blocking" ? "blockees" : "blocks";
+        const blocks = await listMergeRequestBlocks(
+          args.project_id,
+          args.merge_request_iid,
+          resource
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(blocks) }],
+        };
+      }
+
+      case "create_merge_request_dependency": {
+        const args = CreateMergeRequestDependencySchema.parse(params.arguments);
+        const blockingId = await resolveBlockingMergeRequestId(args.blocking_merge_request);
+        const block = await createMergeRequestDependency(
+          args.project_id,
+          args.merge_request_iid,
+          blockingId
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(block) }],
+        };
+      }
+
+      case "delete_merge_request_dependency": {
+        const args = DeleteMergeRequestDependencySchema.parse(params.arguments);
+        await deleteMergeRequestDependency(args.project_id, args.merge_request_iid, args.block_id);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                status: "success",
+                message: "Merge request dependency deleted successfully",
+              }),
+            },
+          ],
         };
       }
 
