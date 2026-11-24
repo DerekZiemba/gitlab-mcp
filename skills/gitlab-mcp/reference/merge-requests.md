@@ -74,6 +74,38 @@ rebase_merge_request
 
 **Warning**: `rebase_merge_request` is destructive - it force-pushes the rebased source branch.
 
+## Dependencies
+
+An MR cannot merge until every MR that blocks it has merged.
+A blocking MR is {project_id, merge_request_iid} (the server resolves its global id) or its global id.
+
+With `GITLAB_TOOLSETS` unset (the default), the core MR tools take dependency params:
+
+```
+create_merge_request
+  ...
+  blocking_merge_requests: [{ project_id: "my-group/other", merge_request_iid: 7 }, 123456]
+
+update_merge_request
+  project_id: "my-group/my-project"
+  merge_request_iid: 42
+  add_blocking_merge_requests: [{ project_id: "my-group/other", merge_request_iid: 7 }]
+  remove_blocking_merge_requests: [123456]
+
+get_merge_request
+  include_dependencies: true   # adds blocked_by and blocking
+```
+
+Dependency changes run after the MR create/update and are not atomic: failures come back in dependency_errors.
+
+With `GITLAB_TOOLSETS` set, the merge_requests toolset has dedicated tools instead:
+
+```
+create_merge_request_dependency  -> blocking_merge_request: same shape as above
+list_merge_request_dependencies  -> blocks; direction: "blocking" lists MRs it blocks
+delete_merge_request_dependency  -> remove one by block_id
+```
+
 ## Discussion Management
 
 ### Threads (inline code comments)

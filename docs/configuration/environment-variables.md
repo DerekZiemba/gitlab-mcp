@@ -83,7 +83,8 @@ summary would drop the content they return or does not read their reply shape:
 `list_ci_catalog_resources`, `list_work_item_notes`,
 `list_custom_field_definitions`, and `list_work_item_statuses`. These also keep the full reply, because the summary
 would drop an id or type that other tools need: `list_issue_links`
-(`issue_link_id`, `link_type`), `list_pipeline_trigger_jobs`
+(`issue_link_id`, `link_type`), `list_merge_request_dependencies`
+(`blocking_merge_request`, `blocked_merge_request`), `list_pipeline_trigger_jobs`
 (`downstream_pipeline.id`), `list_project_variables` and `list_group_variables`
 (`environment_scope`), `list_merge_request_changed_files` (`old_path` and the
 new/deleted/renamed flags), `list_work_items` (`type`), and `list_namespaces`
@@ -1041,6 +1042,14 @@ Unknown IDs are ignored, and the server logs a warning to stderr that names them
 
 For agent-specific tool surfaces, see
 [Custom Agents and Multiple PAT Setup](../auth/custom-agent-multiple-pat.md).
+
+Merge request dependencies change shape with this setting. Unset: `create_merge_request`
+takes `blocking_merge_requests`, `update_merge_request` takes `add_blocking_merge_requests`
+and `remove_blocking_merge_requests`, and `get_merge_request` takes `include_dependencies`.
+The dedicated `list_merge_request_dependencies`, `create_merge_request_dependency`, and
+`delete_merge_request_dependency` tools are not listed, and `discover_tools` does not add them;
+name one in `GITLAB_TOOLS` to list it anyway. Set: the `merge_requests` toolset has the
+dedicated tools, and the core merge request tools have no dependency params.
 
 Special values:
 
